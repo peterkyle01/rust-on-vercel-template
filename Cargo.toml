@@ -1,0 +1,66 @@
+[package]
+name = "rust-on-vercel-template"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "lib/rust/lib.rs"
+
+[dependencies]
+vercel_runtime = "1.1.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+ts-rs = "7.0"
+
+# Database
+sqlx = { version = "0.7", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "json",
+] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Authentication
+jsonwebtoken = "9.2"
+bcrypt = "0.15"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# HTTP and async
+tokio = { version = "1.0", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Environment variables
+dotenvy = "0.15"
+
+[[bin]]
+name = "generate_ts"
+path = "lib/rust/generate_ts.rs"
+
+[[bin]]
+name = "migrate"
+path = "lib/rust/migrate.rs"
+
+# API endpoints
+[[bin]]
+name = "signup"
+path = "api/auth/signup.rs"
+
+[[bin]]
+name = "signin"
+path = "api/auth/signin.rs"
+
+[[bin]]
+name = "me"
+path = "api/auth/me.rs"
+
+[[bin]]
+name = "products"
+path = "api/routes/products.rs"

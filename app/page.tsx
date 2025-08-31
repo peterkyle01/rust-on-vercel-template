@@ -1,103 +1,326 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { AuthResponse, User } from "@/types/models";
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [activeTab, setActiveTab] = useState("signin");
+  const [isLoading, setIsLoading] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
+  const [authStatus, setAuthStatus] = useState<{
+    isLoggedIn: boolean;
+    user?: User;
+    token?: string;
+    error?: string;
+  }>({
+    isLoggedIn: false,
+  });
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+  // Form states
+  const [signinForm, setSigninForm] = useState({ email: "", password: "" });
+  const [signupForm, setSignupForm] = useState({
+    email: "",
+    username: "",
+    password: "",
+  });
+
+  const handleSignin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/auth/signin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(signinForm),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const authData: AuthResponse = data;
+        setAuthStatus({
+          isLoggedIn: true,
+          user: authData.user,
+          token: authData.token,
+        });
+        // Store token in localStorage for future requests
+        localStorage.setItem("token", authData.token);
+      } else {
+        setAuthStatus({
+          isLoggedIn: false,
+          error: data.message || "Signin failed",
+        });
+      }
+    } catch (error) {
+      console.error("Signin error:", error);
+      setAuthStatus({
+        isLoggedIn: false,
+        error: "Network error. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(signupForm),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const authData: AuthResponse = data;
+        setAuthStatus({
+          isLoggedIn: true,
+          user: authData.user,
+          token: authData.token,
+        });
+        // Store token in localStorage for future requests
+        localStorage.setItem("token", authData.token);
+      } else {
+        setAuthStatus({
+          isLoggedIn: false,
+          error: data.message || "Signup failed",
+        });
+      }
+    } catch (error) {
+      console.error("Signup error:", error);
+      setAuthStatus({
+        isLoggedIn: false,
+        error: "Network error. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignout = () => {
+    setAuthStatus({ isLoggedIn: false });
+    localStorage.removeItem("token");
+    setSigninForm({ email: "", password: "" });
+    setSignupForm({ email: "", username: "", password: "" });
+    setTokenCopied(false);
+  };
+
+  const copyTokenToClipboard = async () => {
+    if (authStatus.token) {
+      try {
+        await navigator.clipboard.writeText(authStatus.token);
+        setTokenCopied(true);
+        setTimeout(() => setTokenCopied(false), 2000); // Reset after 2 seconds
+      } catch (err) {
+        console.error("Failed to copy token:", err);
+      }
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+      {/* Theme Toggle - Fixed position */}
+      <div className="fixed top-4 right-4 z-10">
+        <ThemeToggle />
+      </div>
+
+      <div className="w-full max-w-md space-y-6">
+        {/* Authentication Tabs */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-center">Authentication</CardTitle>
+            <CardDescription className="text-center">
+              Sign in to your account or create a new one
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Sign In</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="signin" className="space-y-4">
+                <form onSubmit={handleSignin} className="space-y-4">
+                  <div>
+                    <Input
+                      type="email"
+                      placeholder="Email"
+                      value={signinForm.email}
+                      onChange={(e) =>
+                        setSigninForm({ ...signinForm, email: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      type="password"
+                      placeholder="Password"
+                      value={signinForm.password}
+                      onChange={(e) =>
+                        setSigninForm({
+                          ...signinForm,
+                          password: e.target.value,
+                        })
+                      }
+                      required
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? "Signing in..." : "Sign In"}
+                  </Button>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="signup" className="space-y-4">
+                <form onSubmit={handleSignup} className="space-y-4">
+                  <div>
+                    <Input
+                      type="email"
+                      placeholder="Email"
+                      value={signupForm.email}
+                      onChange={(e) =>
+                        setSignupForm({ ...signupForm, email: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      type="text"
+                      placeholder="Username"
+                      value={signupForm.username}
+                      onChange={(e) =>
+                        setSignupForm({
+                          ...signupForm,
+                          username: e.target.value,
+                        })
+                      }
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      type="password"
+                      placeholder="Password (min 6 characters)"
+                      value={signupForm.password}
+                      onChange={(e) =>
+                        setSignupForm({
+                          ...signupForm,
+                          password: e.target.value,
+                        })
+                      }
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? "Creating account..." : "Sign Up"}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Status Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-center">Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {authStatus.isLoggedIn ? (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <div className="text-green-600 dark:text-green-400 font-medium mb-2">
+                    ✅ Successfully signed in!
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <p>
+                      <strong>Username:</strong> {authStatus.user?.username}
+                    </p>
+                    <p>
+                      <strong>Email:</strong> {authStatus.user?.email}
+                    </p>
+                  </div>
+                  <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded border">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium">
+                        <strong>JWT Token:</strong>
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={copyTokenToClipboard}
+                        className="h-6 px-2 text-xs"
+                      >
+                        {tokenCopied ? "Copied!" : "Copy"}
+                      </Button>
+                    </div>
+                    <div
+                      className="break-all font-mono text-xs p-2 bg-white dark:bg-gray-900 rounded border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      onClick={copyTokenToClipboard}
+                      title="Click to copy token"
+                    >
+                      {authStatus.token}
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleSignout}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Sign Out
+                </Button>
+                <Link href="/products">
+                  <Button variant="secondary" className="w-full">
+                    View Products
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="text-center">
+                {authStatus.error ? (
+                  <div className="text-red-600 dark:text-red-400">
+                    ❌ {authStatus.error}
+                  </div>
+                ) : (
+                  <div className="text-gray-600 dark:text-gray-400">
+                    🔒 You are not logged in
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
