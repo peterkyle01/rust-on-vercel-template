@@ -60,7 +60,7 @@ npm run generate:types
 ### 5. Start Development
 
 ```bash
-npm run dev
+vercel dev
 ```
 
 Visit [http://localhost:3000](http://localhost:3000) to see your application!
