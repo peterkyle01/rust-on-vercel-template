@@ -1,61 +1,11 @@
 use anyhow::{anyhow, Result};
 use bcrypt::{hash, verify, DEFAULT_COST};
-use chrono::{DateTime, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use serde::{Deserialize, Serialize};
+use sqlx::{PgPool, Row};
 use std::env;
-use ts_rs::TS;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct User {
-    #[ts(type = "string")]
-    pub id: Uuid,
-    pub email: String,
-    pub username: String,
-    #[ts(type = "string")]
-    pub created_at: DateTime<Utc>,
-    #[ts(type = "string")]
-    pub updated_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct CreateUserRequest {
-    pub email: String,
-    pub username: String,
-    pub password: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct LoginRequest {
-    pub email: String,
-    pub password: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct AuthResponse {
-    pub user: User,
-    pub token: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Claims {
-    pub sub: String, // user id
-    pub email: String,
-    pub exp: usize, // expiration time
-    pub iat: usize, // issued at
-}
-
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct ApiError {
-    pub message: String,
-    pub code: u16,
-}
+use crate::{Claims, CreateUserRequest, User, UserRepository, UserWithPassword};
 
 pub fn hash_password(password: &str) -> Result<String> {
     let hashed = hash(password, DEFAULT_COST)?;
@@ -107,5 +57,116 @@ pub fn extract_bearer_token(auth_header: &str) -> Result<&str> {
         Ok(&auth_header[7..])
     } else {
         Err(anyhow!("Invalid authorization header format"))
+    }
+}
+
+impl UserRepository {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
+    pub async fn create_user(&self, request: CreateUserRequest) -> Result<User> {
+        // Check if user already exists
+        let existing_user = sqlx::query("SELECT id FROM users WHERE email = $1 OR username = $2")
+            .bind(&request.email)
+            .bind(&request.username)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if existing_user.is_some() {
+            return Err(anyhow!("User with this email or username already exists"));
+        }
+
+        // Hash password
+        let password_hash = hash_password(&request.password)?;
+        let user_id = Uuid::new_v4();
+
+        // Create user
+        let user_row = sqlx::query(
+            r#"
+            INSERT INTO users (id, email, username, password_hash, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, NOW(), NOW())
+            RETURNING id, email, username, created_at, updated_at
+            "#,
+        )
+        .bind(&user_id)
+        .bind(&request.email)
+        .bind(&request.username)
+        .bind(&password_hash)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(User {
+            id: user_row.get("id"),
+            email: user_row.get("email"),
+            username: user_row.get("username"),
+            created_at: user_row.get("created_at"),
+            updated_at: user_row.get("updated_at"),
+        })
+    }
+
+    pub async fn authenticate_user(&self, email: &str, password: &str) -> Result<User> {
+        let user_row = sqlx::query_as::<_, UserWithPassword>(
+            "SELECT id, email, username, password_hash, created_at, updated_at FROM users WHERE email = $1"
+        )
+        .bind(email)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let user_data = user_row.ok_or_else(|| anyhow!("Invalid credentials"))?;
+
+        if !verify_password(password, &user_data.password_hash)? {
+            return Err(anyhow!("Invalid credentials"));
+        }
+
+        Ok(User {
+            id: user_data.id,
+            email: user_data.email,
+            username: user_data.username,
+            created_at: user_data.created_at,
+            updated_at: user_data.updated_at,
+        })
+    }
+
+    pub async fn get_user_by_id(&self, user_id: &Uuid) -> Result<Option<User>> {
+        let user_row = sqlx::query(
+            "SELECT id, email, username, created_at, updated_at FROM users WHERE id = $1",
+        )
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = user_row {
+            Ok(Some(User {
+                id: row.get("id"),
+                email: row.get("email"),
+                username: row.get("username"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
+        let user_row = sqlx::query(
+            "SELECT id, email, username, created_at, updated_at FROM users WHERE email = $1",
+        )
+        .bind(email)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = user_row {
+            Ok(Some(User {
+                id: row.get("id"),
+                email: row.get("email"),
+                username: row.get("username"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }

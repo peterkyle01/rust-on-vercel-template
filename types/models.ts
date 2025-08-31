@@ -11,3 +11,5 @@ export interface LoginRequest { email: string, password: string, }
 export interface AuthResponse { user: User, token: string, }
 
 export interface ApiError { message: string, code: number, }
+
+export interface Claims { sub: string, email: string, exp: number, iat: number, }
